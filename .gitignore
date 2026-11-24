@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.py[cod]
+library/
+output/
+jobs/resolved_job.json
+jobs/layout.json
