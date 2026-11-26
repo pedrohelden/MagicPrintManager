@@ -19,10 +19,26 @@ GUIDE_WIDTH = 0.5 * mm
 OUTER_GUIDE_LENGTH = 4 * mm
 INNER_GUIDE_LENGTH = 1 * mm
 
-# Aparência dos tokens
-TOKEN_BACKGROUND = HexColor("#F0E4C8")
-TOKEN_BORDER = HexColor("#B49A6A")
-TOKEN_TEXT = HexColor("#302719")
+# Paletas vivas, mas equilibradas.
+# Cada ficha mantém três faixas horizontais iguais.
+
+PALETTES = {
+    "red": ("#D94A42", "#F2B84B", "#963A3A"),
+    "blue": ("#2878B8", "#69B5D0", "#24517C"),
+    "green": ("#368A4A", "#A7BD50", "#286345"),
+    "white": ("#D9B85A", "#F0DFA5", "#C9A64B"),
+    "black": ("#68458C", "#81709B", "#302944"),
+    "artifact": ("#B47A27", "#E5BB45", "#8B5A25"),
+    "creature": ("#327FB1", "#E0B84A", "#387A55"),
+    "marker_positive": ("#398B4B", "#A6C75A", "#24683B"),
+    "marker_negative": ("#C34D48", "#E39A46", "#873842"),
+    "marker_special": ("#7751A2", "#C17BAA", "#48366F"),
+    "marker_energy": ("#278AA8", "#D4B947", "#23617C"),
+    "marker_generic": ("#596A83", "#AAB5C5", "#39465A"),
+
+    # Human 1/1 - Any Color: três tons de azul.
+    "human": ("#4779B8", "#6797CC", "#355D96"),
+}
 
 
 def draw_cut_guides(
@@ -94,12 +110,91 @@ def draw_cut_guides(
 def fit_font_size(text, font_name, max_size, max_width):
     size = max_size
 
-    while size > 2:
+    while size > 2.5:
         if stringWidth(text, font_name, size) <= max_width:
             return size
         size -= 0.2
 
-    return 2
+    return 2.5
+
+
+def get_token_palette(token):
+    name = token.get("name", "").lower()
+    power = token.get("power", "").lower()
+    description = token.get("description", "").lower()
+
+    combined = f"{name} {power} {description}"
+
+    # Human 1/1 - Any Color.
+    # Esta regra precisa vir antes das regras genéricas de cor.
+    if "human" in combined and any(word in combined for word in (
+        "any color", "any colour", "qualquer cor"
+    )):
+        return PALETTES["human"]
+
+    # Marcadores positivos e negativos
+    if "+1/+1" in combined:
+        return PALETTES["marker_positive"]
+
+    if "-1/-1" in combined:
+        return PALETTES["marker_negative"]
+
+    # Marcadores especiais
+    if any(word in combined for word in (
+        "poison", "veneno", "loyalty", "lealdade",
+        "experience", "experiência"
+    )):
+        return PALETTES["marker_special"]
+
+    if any(word in combined for word in (
+        "energy", "energia", "charge", "carga"
+    )):
+        return PALETTES["marker_energy"]
+
+    if any(word in combined for word in (
+        "shield", "escudo", "stun", "atordoamento"
+    )):
+        return PALETTES["blue"]
+
+    if any(word in combined for word in (
+        "generic", "genérico"
+    )):
+        return PALETTES["marker_generic"]
+
+    # Fichas de artefato e recursos
+    if any(word in combined for word in (
+        "treasure", "food", "clue", "blood",
+        "map", "powerstone"
+    )):
+        return PALETTES["artifact"]
+
+    # Identidade de cor das criaturas
+    if any(word in combined for word in (
+        "red", "vermelho"
+    )):
+        return PALETTES["red"]
+
+    if any(word in combined for word in (
+        "blue", "azul", "flying"
+    )):
+        return PALETTES["blue"]
+
+    if any(word in combined for word in (
+        "green", "verde", "beast", "saproling"
+    )):
+        return PALETTES["green"]
+
+    if any(word in combined for word in (
+        "black", "preto", "zombie"
+    )):
+        return PALETTES["black"]
+
+    if any(word in combined for word in (
+        "white", "branco", "soldier", "angel"
+    )):
+        return PALETTES["white"]
+
+    return PALETTES["creature"]
 
 
 def draw_token(pdf, cell, page_height):
@@ -118,61 +213,66 @@ def draw_token(pdf, cell, page_height):
         y_mm + height_mm
     ) * mm
 
-    # Fundo pergaminho
-    pdf.setFillColor(TOKEN_BACKGROUND)
-    pdf.setStrokeColor(TOKEN_BORDER)
-    pdf.setLineWidth(0.35)
+    name = token.get("name", "")
+    power = token.get("power", "")
+    description = token.get("description", "")
 
+    colors = get_token_palette(token)
+
+    # Três faixas horizontais de mesma altura.
+    band_height = height / 3
+
+    bands = [
+        (name, colors[0], 4.5, "#FFFFFF"),
+        (power, colors[1], 5.2, "#202020"),
+        (description, colors[2], 3.5, "#FFFFFF")
+    ]
+
+    for index, (text, color, max_size, text_color) in enumerate(bands):
+        band_y = y + height - (index + 1) * band_height
+
+        pdf.setFillColor(HexColor(color))
+        pdf.rect(
+            x,
+            band_y,
+            width,
+            band_height,
+            stroke=0,
+            fill=1
+        )
+
+        pdf.setFillColor(HexColor(text_color))
+
+        font = "Helvetica-Bold"
+
+        font_size = fit_font_size(
+            text,
+            font,
+            max_size,
+            width - 0.8 * mm
+        )
+
+        pdf.setFont(font, font_size)
+
+        pdf.drawCentredString(
+            x + width / 2,
+            band_y + (band_height - font_size) / 2 + 1,
+            text
+        )
+
+    # Contorno externo da ficha
+    pdf.setStrokeColor(HexColor("#171717"))
+    pdf.setLineWidth(0.45)
     pdf.rect(
         x,
         y,
         width,
         height,
         stroke=1,
-        fill=1
+        fill=0
     )
 
-    name = token["name"]
-    power = token["power"]
-    description = token["description"]
-
-    # Texto centralizado e ajustado ao espaço disponível
-    center_x = x + width / 2
-
-    lines = [
-        (name, "Helvetica-Bold", 3.8),
-        (power, "Helvetica-Bold", 4.2),
-        (description, "Helvetica", 2.8)
-    ]
-
-    positions = [
-        y + height * 0.70,
-        y + height * 0.49,
-        y + height * 0.27
-    ]
-
-    pdf.setFillColor(TOKEN_TEXT)
-
-    for (text, font, max_size), text_y in zip(
-        lines, positions
-    ):
-        font_size = fit_font_size(
-            text,
-            font,
-            max_size,
-            width - 1.2 * mm
-        )
-
-        pdf.setFont(font, font_size)
-        pdf.drawCentredString(
-            center_x,
-            text_y,
-            text
-        )
-
     # Guias curtas para os tokens.
-    # Mantemos todas com 1 mm para evitar ultrapassar
-    # as margens físicas da folha.
     draw_cut_guides(
         pdf,
         x,
@@ -304,7 +404,7 @@ def generate_pdf():
 
             total_cards += 1
 
-        # Frente dos tokens
+        # Frente dos tokens e marcadores
         for cell in sheet.get("token_cells", []):
             draw_token(
                 pdf,
@@ -320,14 +420,16 @@ def generate_pdf():
 
     print("\n========== PDF FRONT ==========")
     print(f"Cartas inseridas: {total_cards}")
-    print(f"Tokens inseridos: {total_tokens}")
+    print(f"Tokens e marcadores inseridos: {total_tokens}")
     print(f"Páginas A4: {len(layout['sheets'])}")
     print(
         f"Tamanho da página: "
         f"{page_width/mm:.0f} x {page_height/mm:.0f} mm"
     )
     print("Fundo das cartas: Preto")
-    print("Fundo dos tokens: Pergaminho")
+    print("Fichas: 3 faixas coloridas")
+    print("Cores: Vivas e equilibradas")
+    print("Tipografia: Helvetica-Bold")
     print("Guias: Brancas")
     print(f"Arquivo gerado: {PDF_FILE}")
 

@@ -22,6 +22,22 @@ OUTER_GUIDE_LENGTH = 4 * mm
 INNER_GUIDE_LENGTH = 1 * mm
 
 
+def mirror_cell_x(cell, page_width_mm):
+    """
+    Espelha horizontalmente uma célula para impressão duplex.
+    Não altera o objeto original do layout.
+    """
+    mirrored = dict(cell)
+
+    mirrored["x_mm"] = (
+        page_width_mm
+        - cell["x_mm"]
+        - cell["width_mm"]
+    )
+
+    return mirrored
+
+
 def draw_cut_guides(
     pdf, x, y, width, height,
     is_left, is_right, is_top, is_bottom
@@ -152,6 +168,7 @@ def generate_pdf():
     OUTPUT.mkdir(exist_ok=True)
 
     page_width, page_height = A4
+    page_width_mm = page_width / mm
 
     pdf = canvas.Canvas(
         str(PDF_FILE),
@@ -176,7 +193,12 @@ def generate_pdf():
             stroke=0
         )
 
-        cells = sheet["cells"]
+        # Espelhamento horizontal para impressão duplex
+        # A frente permanece inalterada.
+        cells = [
+            mirror_cell_x(cell, page_width_mm)
+            for cell in sheet["cells"]
+        ]
 
         if cells:
             min_x = min(
@@ -203,11 +225,13 @@ def generate_pdf():
             y_mm = cell["y_mm"]
 
             is_left = abs(x_mm - min_x) < 0.01
+
             is_right = abs(
                 x_mm + cell["width_mm"] - max_x
             ) < 0.01
 
             is_top = abs(y_mm - min_y) < 0.01
+
             is_bottom = abs(
                 y_mm + cell["height_mm"] - max_y
             ) < 0.01
@@ -219,8 +243,9 @@ def generate_pdf():
                 page_height
             )
 
-            # Guias externas mais longas na grade de cartas
+            # Guias externas acompanham as novas posições
             x = x_mm * mm
+
             y = page_height - (
                 y_mm + cell["height_mm"]
             ) * mm
@@ -239,8 +264,14 @@ def generate_pdf():
 
             total_cards += 1
 
-        # Versos dos tokens
-        for cell in sheet.get("token_cells", []):
+        # Versos dos tokens e marcadores
+        # A coluna direita passa para a esquerda.
+        token_cells = [
+            mirror_cell_x(cell, page_width_mm)
+            for cell in sheet.get("token_cells", [])
+        ]
+
+        for cell in token_cells:
             draw_image_cell(
                 pdf,
                 TOKEN_BACK_IMAGE,
@@ -265,6 +296,7 @@ def generate_pdf():
     print("Fundo da página: Preto")
     print("Cartas: Magic Back")
     print("Tokens: imagem personalizada")
+    print("Espelhamento horizontal: Ativado")
     print("Guias: Brancas")
     print(f"Arquivo gerado: {PDF_FILE}")
 
